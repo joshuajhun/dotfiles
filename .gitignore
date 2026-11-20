@@ -1,0 +1,7 @@
+.DS_Store
+*.bak*
+.zsh_history
+.viminfo
+plugged/
+sessions/
+node_modules/

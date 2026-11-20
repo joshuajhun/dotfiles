@@ -1,0 +1,10 @@
+# Shared git settings. Your name/email live in ~/.gitconfig.local,
+# which install.sh writes for whoever is using this machine (never committed).
+[include]
+	path = ~/.gitconfig.local
+[credential "https://github.com"]
+	helper =
+	helper = !gh auth git-credential
+[credential "https://gist.github.com"]
+	helper =
+	helper = !gh auth git-credential
