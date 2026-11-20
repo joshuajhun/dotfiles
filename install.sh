@@ -72,13 +72,43 @@ COC_DIR="$HOME/.config/coc/extensions"
 install_coc_exts() { (cd "$COC_DIR" && npm install --no-package-lock --ignore-scripts --legacy-peer-deps); }
 coc_exts_present() { [ -d "$COC_DIR/node_modules/coc-tsserver" ]; }
 
+# --- git (opt-in) -------------------------------------------------------------
+# Asks before touching git. Identity goes to ~/.gitconfig.local (not in this repo),
+# so each person enters their own. Non-interactive: set GIT_NAME and GIT_EMAIL.
+GIT_LOCAL="$HOME/.gitconfig.local"
+ask() { local reply; read -r -p "$1 " reply </dev/tty; printf '%s' "$reply"; }
+
+setup_git() {
+  if [ -L "$HOME/.gitconfig" ] && git config --file "$GIT_LOCAL" user.email >/dev/null 2>&1; then
+    skip "git config ($(git config --file "$GIT_LOCAL" user.email))"; return
+  fi
+  local name="${GIT_NAME:-}" email="${GIT_EMAIL:-}"
+  if [ -z "$name$email" ]; then
+    [ -t 0 ] || { skip "git config (no GIT_NAME/GIT_EMAIL, not interactive)"; return; }
+    case "$(ask "Set up git with YOUR name/email on this machine? [y/N]")" in
+      [yY]*) ;;
+      *) skip "git config (declined)"; return ;;
+    esac
+    local cur_name cur_email
+    cur_name="$(git config --global user.name 2>/dev/null || true)"
+    cur_email="$(git config --global user.email 2>/dev/null || true)"
+    name="$(ask "  Git name [${cur_name}]:")";   name="${name:-$cur_name}"
+    email="$(ask "  Git email [${cur_email}]:")"; email="${email:-$cur_email}"
+  fi
+  [ -n "$name" ] && [ -n "$email" ] || { skip "git config (name/email empty)"; return; }
+  git config --file "$GIT_LOCAL" user.name "$name"
+  git config --file "$GIT_LOCAL" user.email "$email"
+  link git/.gitconfig "$HOME/.gitconfig"
+  done_ "git identity ($email)"
+  gh auth status >/dev/null 2>&1 || say "Run 'gh auth login' to sign in to GitHub as $name."
+}
+
 # --- run ---------------------------------------------------------------------
 LINKS=(
   "zsh/.zshrc:$HOME/.zshrc"
   "zsh/.zprofile:$HOME/.zprofile"
   "vim/.vimrc:$HOME/.vimrc"
   "nvim/init.vim:$HOME/.config/nvim/init.vim"
-  "git/.gitconfig:$HOME/.gitconfig"
   ".tool-versions:$HOME/.tool-versions"
   "coc/package.json:$COC_DIR/package.json"
 )
@@ -93,6 +123,7 @@ main() {
 
   local pair
   for pair in "${LINKS[@]}"; do link "${pair%%:*}" "${pair#*:}"; done
+  setup_git
 
   step "asdf nodejs plugin" "asdf plugin list 2>/dev/null | grep -qx nodejs" install_asdf_node
   step "asdf tools (.tool-versions)" "(cd '$HOME' && asdf current nodejs >/dev/null 2>&1)" install_tool_versions
